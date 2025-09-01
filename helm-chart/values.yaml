@@ -12,6 +12,7 @@ configMap:
   POSTGRES_PORT: 5432
   POSTGRES_USER: "feedbackapi"
   POSTGRES_DATABASE: "feedbackapi"
+  POSTGRES_HOST: "feedback-api-postgresql"
   OTLP_TRACING_ENABLED: "false"
   OTLP_GRPC_HOST: "127.0.0.1"
   OTLP_GRPC_PORT: "4317"
