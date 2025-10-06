@@ -60,6 +60,7 @@ jobs:
           else
             echo "version=${{ steps.semver.outputs.current_version }}" >> $GITHUB_OUTPUT
             echo "should_build=false" >> $GITHUB_OUTPUT
+          fi
 
   build:
     needs: calculate-version
