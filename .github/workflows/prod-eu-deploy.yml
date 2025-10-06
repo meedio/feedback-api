@@ -1,0 +1,98 @@
+name: Deploy to production-eu
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Version bump level'
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+        default: patch
+
+concurrency:
+  group: deploy-prod-eu
+  cancel-in-progress: true
+
+permissions:
+  id-token: write
+  contents: read
+  packages: write
+
+jobs:
+  calculate-version:
+    name: Calculate next semver
+    runs-on: self-hosted
+    outputs:
+      version: ${{ steps.semver.outputs.next_version }}
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Bump semantic version
+        id: semver
+        uses: rickstaa/action-get-semver@v1
+        with:
+          bump_level: ${{ github.event.inputs.bump }}
+
+  build:
+    needs: calculate-version
+    runs-on: self-hosted
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build and push
+        uses: ./.github/actions/build
+        with:
+          docker-container-name: 'ghcr.io/meedio/feedback-api'
+          version: '${{ needs.calculate-version.outputs.version }}'
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  deploy:
+    needs: [build, calculate-version]
+    runs-on: self-hosted
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy to Kubernetes
+        uses: ./.github/actions/deploy
+        with:
+          environment: 'production-eu'
+          docker-container-name: 'ghcr.io/meedio/feedback-api'
+          version: '${{ needs.calculate-version.outputs.version }}'
+          yaml-path: '.spec.template.spec.containers.[0].image'
+          file-path: 'feedback-api/2-feedback-api.yaml'
+          kubectl-namespace: 'feedback-api'
+          kubectl-object: 'deployment/feedback-api'
+          vault-url: 'https://vault.admin.meedio.eu'
+
+  tag:
+    name: Create & Push Git Tag
+    needs: [deploy, calculate-version]
+    runs-on: self-hosted
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout full history & auth
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Configure Git user
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create and push tag
+        run: |
+          TAG=${{ needs.calculate-version.outputs.version }}
+          git tag "$TAG"
+          git push origin "$TAG"
