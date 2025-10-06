@@ -1,0 +1,71 @@
+name: Deploy to development
+on:
+  workflow_dispatch:
+  push:
+    branches: 
+      - main
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: true
+
+permissions:
+  id-token: write
+  contents: read
+  packages: write
+
+jobs:
+  lint:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Lint
+        uses: ./.github/actions/lint
+
+  get-current-time:
+    runs-on: self-hosted
+    outputs:
+      time: ${{ steps.current-time.outputs.formattedTime }}
+    steps:
+      - name: Get current time
+        uses: josStorer/get-current-time@v2
+        id: current-time
+        with:
+          format: YYYYMMDDHHmmss
+
+  build:
+    needs: [lint, get-current-time]
+    runs-on: self-hosted
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build and push
+        uses: ./.github/actions/build
+        with:
+          docker-container-name: 'ghcr.io/meedio/feedback-api'
+          version: 'main-${{ needs.get-current-time.outputs.time }}'
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  deploy:
+    needs: [build, get-current-time]
+    runs-on: self-hosted
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy to Kubernetes
+        uses: ./.github/actions/deploy
+        with:
+          environment: 'development'
+          docker-container-name: 'ghcr.io/meedio/feedback-api'
+          version: 'main-${{ needs.get-current-time.outputs.time }}'
+          yaml-path: '.spec.template.spec.containers.[0].image'
+          file-path: 'other/feedback-api/2-feedback-api.yaml'
+          kubectl-namespace: 'feedback-api'
+          kubectl-object: 'deployment/feedback-api'
+          vault-url: 'https://vault.admin.meedio.pro'
