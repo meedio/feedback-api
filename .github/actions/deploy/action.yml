@@ -52,7 +52,7 @@ runs:
       shell: bash
       run: |
         if [ "${{ inputs.environment }}" == "production" ]; then
-          echo "DIR_NAME=other/production" >> $GITHUB_ENV
+          echo "DIR_NAME=production/other" >> $GITHUB_ENV
           echo "COMMIT_PREFIX=Prod" >> $GITHUB_ENV
         elif [ "${{ inputs.environment }}" == "production-eu" ]; then
           echo "DIR_NAME=production-eu" >> $GITHUB_ENV
