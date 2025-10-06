@@ -51,7 +51,7 @@ runs:
     - name: Set Directory & commit prefix names
       shell: bash
       run: |
-        elif [ "${{ inputs.environment }}" == "production" ]; then
+        if [ "${{ inputs.environment }}" == "production" ]; then
           echo "DIR_NAME=production" >> $GITHUB_ENV
           echo "COMMIT_PREFIX=Prod" >> $GITHUB_ENV
         elif [ "${{ inputs.environment }}" == "production-eu" ]; then
