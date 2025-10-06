@@ -64,13 +64,13 @@ jobs:
 
   build:
     needs: calculate-version
-    if: ${{ needs.calculate-version.outputs.should_build == 'true' }}
     runs-on: self-hosted
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Build and push
+        if: ${{ needs.calculate-version.outputs.should_build == 'true' }}
         uses: ./.github/actions/build
         with:
           docker-container-name: 'ghcr.io/meedio/feedback-api'
