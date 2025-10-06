@@ -3,18 +3,21 @@ name: Deploy to production
 on:
   workflow_dispatch:
     inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options: [production, production-eu]
+        default: production
       bump:
         description: 'Version bump level'
         required: true
         type: choice
-        options:
-          - patch
-          - minor
-          - major
+        options: [patch, minor, major]
         default: patch
 
 concurrency:
-  group: deploy-prod
+  group: deploy-${{ github.event.inputs.environment }}
   cancel-in-progress: true
 
 permissions:
@@ -64,14 +67,14 @@ jobs:
       - name: Deploy to Kubernetes
         uses: ./.github/actions/deploy
         with:
-          environment: 'production'
+          environment: '${{ github.event.inputs.environment }}'
           docker-container-name: 'ghcr.io/meedio/feedback-api'
           version: '${{ needs.calculate-version.outputs.version }}'
           yaml-path: '.spec.template.spec.containers.[0].image'
           file-path: 'feedback-api/2-feedback-api.yaml'
           kubectl-namespace: 'feedback-api'
           kubectl-object: 'deployment/feedback-api'
-          vault-url: 'https://vault.admin.meedio.me'
+          vault-url: ${{ format('https://vault.admin.meedio.{0}', github.event.inputs.environment == 'production' && 'me' || 'eu') }}
 
   tag:
     name: Create & Push Git Tag
