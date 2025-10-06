@@ -9,9 +9,15 @@ on:
         type: choice
         options: [production, production-eu]
         default: production
-      bump:
-        description: 'Version bump level'
+      mode:
+        description: 'Choose how to deploy'
         required: true
+        type: choice
+        options: [bump, use-latest]
+        default: bump
+      bump:
+        description: 'Version bump level (only used when mode=bump)'
+        required: false
         type: choice
         options: [patch, minor, major]
         default: patch
@@ -27,24 +33,37 @@ permissions:
 
 jobs:
   calculate-version:
-    name: Calculate next semver
+    name: Determine version
     runs-on: self-hosted
     outputs:
-      version: ${{ steps.semver.outputs.next_version }}
+      version: ${{ steps.setver.outputs.version }}
+      should_build: ${{ steps.setver.outputs.should_build }}
     steps:
       - name: Checkout full history
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Bump semantic version
+      - name: Get semver info
         id: semver
         uses: rickstaa/action-get-semver@v1
         with:
           bump_level: ${{ github.event.inputs.bump }}
 
+      - name: Set outputs
+        id: setver
+        shell: bash
+        run: |
+          if [[ "${{ github.event.inputs.mode }}" == "bump" ]]; then
+            echo "version=${{ steps.semver.outputs.next_version }}" >> $GITHUB_OUTPUT
+            echo "should_build=true" >> $GITHUB_OUTPUT
+          else
+            echo "version=${{ steps.semver.outputs.current_version }}" >> $GITHUB_OUTPUT
+            echo "should_build=false" >> $GITHUB_OUTPUT
+
   build:
     needs: calculate-version
+    if: ${{ needs.calculate-version.outputs.should_build == 'true' }}
     runs-on: self-hosted
     steps:
       - name: Checkout
@@ -58,7 +77,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
   deploy:
-    needs: [build, calculate-version]
+    needs: [calculate-version, build]
     runs-on: self-hosted
     steps:
       - name: Checkout
@@ -79,6 +98,7 @@ jobs:
   tag:
     name: Create & Push Git Tag
     needs: [deploy, calculate-version]
+    if: ${{ needs.calculate-version.outputs.should_build == 'true' }}
     runs-on: self-hosted
     permissions:
       contents: write
